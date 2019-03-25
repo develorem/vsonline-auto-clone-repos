@@ -1,84 +1,63 @@
-﻿using Newtonsoft.Json;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoCloner.VsOnline.Dto;
 
-namespace vs_api
+namespace AutoCloner.VsOnline
 {
     class Program
     {
         static void Main(string[] args)
         {
-            var baseDir = @"C:\clonetest"; // you will need to create this folder
-            var myOrg = "todo";
-            var myProject = "todo";
-
-            var settings = new Settings();
-            var git = new GitRunner();
-            var apiClient = new VsOnlineApiClient(settings);
-            Console.Write("Pulling repository list from VS online...");
-            var result = apiClient.GetApi<RepositoryResult>(myOrg, myProject, @"git/repositories");
-            Console.WriteLine($"Completed. There are {result.Value.Count()} repositories retrieved.");
-
-            var preexisting = result.Value.Where(x => FolderExistsForRepo(baseDir, x)).Count();
-            var needToClone = result.Value.Where(x => FolderExistsForRepo(baseDir, x) == false);
-            Console.WriteLine($"Folders exist for {preexisting} repositories. Will clone {needToClone.Count()} repositories");
-
-            var bag = new ConcurrentBag<CloneResult>();
-
-            Console.WriteLine("Cloning:");
-            Parallel.ForEach(needToClone, r => CloneIfNotExists(git, baseDir, r, bag));
+            Console.WriteLine("Starting Multi-project clone engine.");
             Console.WriteLine();
-            Console.WriteLine("Cloning completed. Exporting...");
-            var filename  = DumpResults(baseDir, bag);
-            Console.WriteLine("Export complete. Results at: " + filename);
+
+            var settings = SettingsProvider.Hardcoded();
+
+            var engine = RegisterServicesAndGetEngine();
+            var results = engine.Run(settings);
+
+            var changes = results.Where(x => x.Status != CloneStatus.FolderExists).ToArray();
+            LogNewResults(settings.CloneBaseDirectory, changes);
+
+            Console.WriteLine();
+            Console.WriteLine("Multi-project clone engine completed.");
+            Console.WriteLine();
             Console.ReadKey();
+            Console.WriteLine();
         }
 
-        private static bool FolderExistsForRepo(string baseDir, Repository repo)
+        private static void LogNewResults(string path, IEnumerable<CloneResult> results)
         {
-            var dir = Path.Combine(baseDir, repo.Name);
-            return Directory.Exists(dir);
-        }
+            var now = DateTime.Now.ToString("yy-mm-dd-hh-MM-ss");
+            var filename = Path.Combine(path, $"RepoChanges-{now}.json");
 
-        private static string DumpResults(string path, ConcurrentBag<CloneResult> results)
-        {
-            var json = JsonConvert.SerializeObject(results.ToArray());
-            var filename = Path.Combine(path, DateTime.Now.ToString("yyyy-mm-dd-hh-MM-ss") + ".json");
+            var json = JsonConvert.SerializeObject(results);
             File.WriteAllText(filename, json);
-            return filename;
         }
 
-        private static void CloneIfNotExists(GitRunner git, string baseDir, Repository repo, ConcurrentBag<CloneResult> bag)
+        private static Engine RegisterServicesAndGetEngine()
         {
-            var result = new CloneResult { Name = repo.Name,  ClonedSuccessfully = false };
+            var services = new ServiceCollection()
+                .AddSingleton<Engine>()
+                .AddSingleton<IGitRunner, CommandLineGitRunner>()
+                .AddSingleton<ICloner, GitCloner>()
+                .AddSingleton<IVsOnlineApiClient, VsOnlineApiClient>()
+                .AddSingleton<IRepositoryEnumerator, VsOnlineRepositoryEnumerator>()
+                .AddSingleton<IProjectEnumerator, HardCodedProjectEnumerator>()
+                .AddLogging(c => c.AddConsole())
+                ;
 
-            try
-            {
-                var newPath = Path.Combine(baseDir, repo.Name);
-                if (!Directory.Exists(newPath))
-                {
+            var provider = services.BuildServiceProvider();
 
-                    git.Clone(repo.RemoteUrl, baseDir);
-                }
-                result.ClonedSuccessfully = true;
-            }
-            catch (Exception ex)
-            {
-                result.ClonedSuccessfully = false;
-            }
-
-            bag.Add(result);
-
-            Console.Write($".");
+            return provider.GetService<Engine>();
         }
-    }
 
-    public class CloneResult
-    {
-        public string Name { get; set; }
-        public bool ClonedSuccessfully { get; set; }
     }
 }

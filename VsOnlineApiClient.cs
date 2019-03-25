@@ -4,32 +4,36 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 
-namespace vs_api
+namespace AutoCloner.VsOnline
 {
-    public class VsOnlineApiClient
+    public interface IVsOnlineApiClient
     {
-        private readonly Settings settings;
+        void SetBasicCredentials(string username, string password);
 
-        public VsOnlineApiClient(Settings settings)
-        {
-            this.settings = settings;
-        }
+        T GetApi<T>(string org, string project, string api);
+    }
 
+    public class VsOnlineApiClient : IVsOnlineApiClient
+    {
+        private string username;
+        private string password;
+        
         public T GetApi<T>(string org, string project, string api)
         {
             var json = Get(org, project, api);
             return JsonConvert.DeserializeObject<T>(json);
-
         }
-        public string Get(string org, string project, string api)
+
+        private string Get(string org, string project, string api)
         {
             var uri = GetApiUri(org, project, api);
 
-            var auth = string.Format("{0}:{1}", settings.Username, settings.Password);
+            var auth = string.Format("{0}:{1}", username, password);
             var bytes = Convert.ToBase64String(Encoding.ASCII.GetBytes(auth));
 
             using (var client = new HttpClient())
             {
+                // TODO Change to support multiple auth types; people will normally want to do this with tokens
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", bytes);
 
@@ -45,9 +49,14 @@ namespace vs_api
         private static Uri GetApiUri(string org, string project, string api)
         {
             var domainUri = new Uri($"https://{org}.visualstudio.com/{project}/_apis/{api}?api-version=5.0");
-            var relativePath = $"{project}/_apis/{api}?api-version=5.0";
-            var apiUri = new Uri(domainUri, relativePath);
-            return apiUri;
+            return domainUri;
         }
+
+        public void SetBasicCredentials(string username, string password)
+        {
+            this.username = username;
+            this.password = password;
+        }
+
     }
 }

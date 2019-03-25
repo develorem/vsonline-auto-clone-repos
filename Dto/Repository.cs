@@ -1,7 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 
-namespace vs_api
+namespace AutoCloner.VsOnline.Dto
 {
     public class Repository
     {
@@ -17,11 +16,5 @@ namespace vs_api
 
         public string SshUrl { get; set; }
 
-    }
-
-    public class RepositoryResult
-    {
-        public IEnumerable<Repository> Value { get; set; }
-        public int Count { get; set; }
     }
 }
