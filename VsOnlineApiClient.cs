@@ -11,6 +11,8 @@ namespace AutoCloner.VsOnline
         void SetBasicCredentials(string username, string password);
 
         T GetApi<T>(string org, string project, string api);
+
+        T GetApi<T>(string org, string api);
     }
 
     public class VsOnlineApiClient : IVsOnlineApiClient
@@ -20,20 +22,26 @@ namespace AutoCloner.VsOnline
         
         public T GetApi<T>(string org, string project, string api)
         {
-            var json = Get(org, project, api);
+            var uri = new Uri($"https://{org}.visualstudio.com/{project}/_apis/{api}?api-version=5.0");
+            var json = CallApiWithBasicCreds(uri);
             return JsonConvert.DeserializeObject<T>(json);
         }
 
-        private string Get(string org, string project, string api)
+        public T GetApi<T>(string org, string api)
         {
-            var uri = GetApiUri(org, project, api);
+            var uri = new Uri($"https://dev.azure.com/{org}/_apis/{api}?api-version=5.0");
+            var json = CallApiWithBasicCreds(uri);
+            return JsonConvert.DeserializeObject<T>(json);
+        }
 
+        private string CallApiWithBasicCreds(Uri uri)
+        {
             var auth = string.Format("{0}:{1}", username, password);
             var bytes = Convert.ToBase64String(Encoding.ASCII.GetBytes(auth));
 
             using (var client = new HttpClient())
             {
-                // TODO Change to support multiple auth types; people will normally want to do this with tokens
+                // Works for user/pass and user/token
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", bytes);
 
@@ -46,17 +54,10 @@ namespace AutoCloner.VsOnline
             }
         }
 
-        private static Uri GetApiUri(string org, string project, string api)
-        {
-            var domainUri = new Uri($"https://{org}.visualstudio.com/{project}/_apis/{api}?api-version=5.0");
-            return domainUri;
-        }
-
         public void SetBasicCredentials(string username, string password)
         {
             this.username = username;
             this.password = password;
         }
-
     }
 }

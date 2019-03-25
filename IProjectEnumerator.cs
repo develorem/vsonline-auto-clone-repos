@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using AutoCloner.VsOnline.Dto;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace AutoCloner.VsOnline
 {
@@ -6,15 +8,21 @@ namespace AutoCloner.VsOnline
     {
         IEnumerable<string> GetProjects(string username, string password, string org);
     }
-
-    public class HardCodedProjectEnumerator : IProjectEnumerator
+    
+    public class VsOnlineApiProjectEnumerator : IProjectEnumerator
     {
+        private readonly IVsOnlineApiClient apiClient;
+
+        public VsOnlineApiProjectEnumerator(IVsOnlineApiClient apiClient)
+        {
+            this.apiClient = apiClient;
+        }
+
         public IEnumerable<string> GetProjects(string username, string password, string org)
         {
-            yield return "OnlineOrdering";
-            yield return "Architecture";
+            apiClient.SetBasicCredentials(username, password);
+            var projectResult = apiClient.GetApi<ProjectResult>(org, "projects");
+            return projectResult.Value.Select(x => x.Name).ToArray();
         }
     }
-
-    // TODO Implement an Api based proejct enumerator to hit the API and get a list of projects rather than hardcoding
 }

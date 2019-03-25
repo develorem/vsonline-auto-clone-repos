@@ -2,11 +2,9 @@
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using AutoCloner.VsOnline.Dto;
 
 namespace AutoCloner.VsOnline
@@ -50,7 +48,7 @@ namespace AutoCloner.VsOnline
                 .AddSingleton<ICloner, GitCloner>()
                 .AddSingleton<IVsOnlineApiClient, VsOnlineApiClient>()
                 .AddSingleton<IRepositoryEnumerator, VsOnlineRepositoryEnumerator>()
-                .AddSingleton<IProjectEnumerator, HardCodedProjectEnumerator>()
+                .AddSingleton<IProjectEnumerator, VsOnlineApiProjectEnumerator>()
                 .AddLogging(c => c.AddConsole())
                 ;
 
